@@ -1,6 +1,6 @@
 {
   "name": "slop-review",
-  "version": "0.5.0",
+  "version": "0.6.1",
   "description": "Native diff review window (Monaco + Glimpse) for AI coding agents. Browse changes since the merge-base with your base branch (or last commit / uncommitted), leave inline + file-level + overall comments on the slop, and have the agent address each item.",
   "author": {
     "name": "Dan Bachelder",

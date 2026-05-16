@@ -1,6 +1,6 @@
 {
   "name": "slop-review",
-  "version": "0.5.0",
+  "version": "0.6.1",
   "description": "Native, Monaco-powered diff review window for AI coding agents. Browse changes since the merge-base with your base branch (or last commit / uncommitted), leave inline + file-level + overall comments on the slop, and have the agent address each item. Originally built for Claude Code; works in Codex CLI via the bundled `slop-review` skill.",
   "author": {
     "name": "Dan Bachelder",
