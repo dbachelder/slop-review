@@ -20,10 +20,19 @@ If the user has not made any changes yet, say so and skip this skill.
 The plugin ships a self-contained dispatcher script. Invoke it via your shell tool with this exact command (substituting the user's intent for `<args>`):
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/bin/plugin-run.sh" <args>
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -x "${CLAUDE_PLUGIN_ROOT}/bin/plugin-run.sh" ]; then
+	bash "${CLAUDE_PLUGIN_ROOT}/bin/plugin-run.sh" <args>
+elif [ -n "${CODEX_PLUGIN_ROOT:-}" ] && [ -x "${CODEX_PLUGIN_ROOT}/bin/plugin-run.sh" ]; then
+	bash "${CODEX_PLUGIN_ROOT}/bin/plugin-run.sh" <args>
+elif command -v slop-review >/dev/null 2>&1; then
+	slop-review <args>
+else
+	echo "slop-review is not available. Install the plugin via your agent's plugin/marketplace command, or run: npm install -g slop-review" >&2
+	exit 1
+fi
 ```
 
-`${CLAUDE_PLUGIN_ROOT}` is set by both Claude Code and Codex CLI when running plugin commands. (Codex stores plugin checkouts under `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/` and exposes that path via `CLAUDE_PLUGIN_ROOT`.) On first invocation the dispatcher does a one-time `npm install` inside the plugin checkout to pull `glimpseui` and build its native helper, then exec's the CLI.
+Agent plugin hosts expose the plugin checkout through an environment variable such as `${CLAUDE_PLUGIN_ROOT}` or `${CODEX_PLUGIN_ROOT}`. The shell block above checks both names, then falls back to a globally installed `slop-review` binary. On first invocation the dispatcher does a one-time `npm install` inside the plugin checkout to pull `glimpseui` and build its native helper, then exec's the CLI.
 
 `<args>` is one of:
 
