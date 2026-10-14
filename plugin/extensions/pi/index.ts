@@ -29,6 +29,7 @@ import { composeReviewPrompt } from "../../src/prompt.js";
 import { buildReviewHtml } from "../../src/ui.js";
 import type {
   ReviewCancelPayload,
+  ReviewCommit,
   ReviewFile,
   ReviewFileContents,
   ReviewHostMessage,
@@ -227,7 +228,7 @@ export default function (pi: ExtensionAPI) {
     const repoRoot = await git.getRepoRoot(ctx.cwd);
     const scopeCtx = await resolveScopeContext(repoRoot, parsed, ctx);
 
-    const { files }: { files: ReviewFile[] } = await git.getReviewWindowData(ctx.cwd, {
+    const { files, commits }: { files: ReviewFile[]; commits: ReviewCommit[] } = await git.getReviewWindowData(ctx.cwd, {
       gitDiffOriginalRef: scopeCtx.gitDiffOriginalRef,
     });
     if (files.length === 0) {
@@ -239,6 +240,7 @@ export default function (pi: ExtensionAPI) {
     const html = buildReviewHtml({
       repoRoot,
       files,
+      commits,
       initialScope,
       scopeLabels: scopeCtx.scopeLabels,
       scopeHints: scopeCtx.scopeHints,
@@ -263,12 +265,17 @@ export default function (pi: ExtensionAPI) {
       window.send(`window.__reviewReceive(${payload});`);
     };
 
-    const loadContents = (file: ReviewFile, scope: ReviewRequestFilePayload["scope"]): Promise<ReviewFileContents> => {
-      const cacheKey = `${scope}:${file.id}`;
+    const loadContents = (
+      file: ReviewFile,
+      scope: ReviewRequestFilePayload["scope"],
+      commitSha?: string,
+    ): Promise<ReviewFileContents> => {
+      const cacheKey = `${scope}:${commitSha ?? ""}:${file.id}`;
       const cached = contentCache.get(cacheKey);
       if (cached != null) return cached;
       const pending = git.loadReviewFileContents(repoRoot, file, scope, {
         gitDiffOriginalRef: scopeCtx.gitDiffOriginalRef,
+        commitSha,
       });
       contentCache.set(cacheKey, pending);
       return pending;
@@ -307,18 +314,20 @@ export default function (pi: ExtensionAPI) {
               requestId: message.requestId,
               fileId: message.fileId,
               scope: message.scope,
+              commitSha: message.commitSha,
               message: "Unknown file requested.",
             });
             return;
           }
 
           try {
-            const contents = await loadContents(file, message.scope);
+            const contents = await loadContents(file, message.scope, message.commitSha);
             sendWindowMessage({
               type: "file-data",
               requestId: message.requestId,
               fileId: message.fileId,
               scope: message.scope,
+              commitSha: message.commitSha,
               originalContent: contents.originalContent,
               modifiedContent: contents.modifiedContent,
             });
@@ -329,6 +338,7 @@ export default function (pi: ExtensionAPI) {
               requestId: message.requestId,
               fileId: message.fileId,
               scope: message.scope,
+              commitSha: message.commitSha,
               message: messageText,
             });
           }
@@ -396,7 +406,7 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.registerCommand("slop-review", {
-    description: "Open the native slop-review window. Default: PR-style review of all changes since the merge-base with the auto-detected base branch.",
+    description: "Open the native slop-review window for PR-style changes or a selected recent commit.",
     getArgumentCompletions: (argumentPrefix: string): AutocompleteItem[] | null => {
       // First argument: scope name. After that, --base flag with no completion.
       const trimmed = argumentPrefix.trimStart();

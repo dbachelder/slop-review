@@ -149,7 +149,7 @@ async function main() {
   const repoRoot = await getRepoRoot(cwd);
   const ctx = await resolveScopeContext(repoRoot, args);
 
-  const { files } = await getReviewWindowData(cwd, { gitDiffOriginalRef: ctx.gitDiffOriginalRef });
+  const { files, commits } = await getReviewWindowData(cwd, { gitDiffOriginalRef: ctx.gitDiffOriginalRef });
   if (files.length === 0) {
     log("No reviewable files found for the requested scope.");
     process.stdout.write("REVIEW_CANCELLED\n");
@@ -160,6 +160,7 @@ async function main() {
   const html = buildReviewHtml({
     repoRoot,
     files,
+    commits,
     initialScope,
     scopeLabels: ctx.scopeLabels,
     scopeHints: ctx.scopeHints,
@@ -187,11 +188,14 @@ async function main() {
     }
   };
 
-  const loadContents = (file, scope) => {
-    const key = `${scope}:${file.id}`;
+  const loadContents = (file, scope, commitSha) => {
+    const key = `${scope}:${commitSha ?? ""}:${file.id}`;
     const cached = contentCache.get(key);
     if (cached != null) return cached;
-    const pending = loadReviewFileContents(repoRoot, file, scope, { gitDiffOriginalRef: ctx.gitDiffOriginalRef });
+    const pending = loadReviewFileContents(repoRoot, file, scope, {
+      gitDiffOriginalRef: ctx.gitDiffOriginalRef,
+      commitSha,
+    });
     contentCache.set(key, pending);
     return pending;
   };
@@ -204,17 +208,19 @@ async function main() {
         requestId: message.requestId,
         fileId: message.fileId,
         scope: message.scope,
+        commitSha: message.commitSha,
         message: "Unknown file requested.",
       });
       return;
     }
     try {
-      const contents = await loadContents(file, message.scope);
+      const contents = await loadContents(file, message.scope, message.commitSha);
       sendWindowMessage({
         type: "file-data",
         requestId: message.requestId,
         fileId: message.fileId,
         scope: message.scope,
+        commitSha: message.commitSha,
         originalContent: contents.originalContent,
         modifiedContent: contents.modifiedContent,
       });
@@ -225,6 +231,7 @@ async function main() {
         requestId: message.requestId,
         fileId: message.fileId,
         scope: message.scope,
+        commitSha: message.commitSha,
         message: messageText,
       });
     }

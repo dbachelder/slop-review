@@ -1,6 +1,6 @@
 ---
 name: slop-review
-description: Open the native, Monaco-powered diff review window so the user can leave inline / file-level / overall comments on the current changes (the AI slop), then address each comment. Use this when the user asks to "review my changes", "review the slop", "review my diff", "open a diff review", "open the review window", "get feedback on my work", "do a PR-style review", "show me what I changed and let me comment", or types `@slop-review` explicitly. Defaults to a PR-style review of all commits + uncommitted changes since the merge-base with the auto-detected base branch (origin/HEAD → origin/main → main → origin/master → master); also supports last-commit, uncommitted, and all-files modes.
+description: Open the native, Monaco-powered diff review window so the user can leave inline / file-level / overall comments on current changes or a selected recent commit, then address each comment. Use this when the user asks to "review my changes", "review the slop", "review my diff", "open a diff review", "open the review window", "get feedback on my work", "do a PR-style review", "review a specific commit", "show me what I changed and let me comment", or types `@slop-review` explicitly. Defaults to a PR-style review of all commits + uncommitted changes since the merge-base with the auto-detected base branch (origin/HEAD → origin/main → main → origin/master → master); the window also lets users select one of the 50 most recent commits.
 ---
 
 # slop-review
@@ -44,7 +44,7 @@ Agent plugin hosts expose the plugin checkout through an environment variable su
 | Override the auto-detected base branch | `--base <ref>` |
 | Just browse the working tree (debug) | `all` |
 
-A native window will open. **The shell call will block until the user clicks Submit feedback or closes the window — this can take minutes. Do not run other tool calls in parallel; just wait.**
+A native window will open. The user can open **Commits** and select one of the 50 most recent commits without changing the dispatcher arguments. **The shell call will block until the user clicks Submit feedback or closes the window — this can take minutes. Do not run other tool calls in parallel; just wait.**
 
 ## Step 2 — interpret the dispatcher's stdout
 

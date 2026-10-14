@@ -151,8 +151,10 @@
       <div class="mb-3 flex flex-wrap items-center gap-2">
         <button id="scope-diff-button" class="cursor-pointer rounded-md border border-review-border bg-review-panel px-2.5 py-1 text-[11px] font-medium text-review-text hover:bg-[#21262d]">Git diff</button>
         <button id="scope-last-commit-button" class="cursor-pointer rounded-md border border-review-border bg-review-panel px-2.5 py-1 text-[11px] font-medium text-review-text hover:bg-[#21262d]">Last commit</button>
+        <button id="scope-commit-button" class="cursor-pointer rounded-md border border-review-border bg-review-panel px-2.5 py-1 text-[11px] font-medium text-review-text hover:bg-[#21262d]">Commits</button>
         <button id="scope-all-button" class="cursor-pointer rounded-md border border-review-border bg-review-panel px-2.5 py-1 text-[11px] font-medium text-review-text hover:bg-[#21262d]">All files</button>
       </div>
+      <select id="commit-select" class="mb-3 hidden w-full rounded-md border border-review-border bg-review-panel px-2 py-2 text-xs text-review-text outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></select>
       <input id="sidebar-search-input" type="text" spellcheck="false" autocomplete="off" placeholder="Search files" class="w-full rounded-md border border-review-border bg-review-panel px-3 py-2 text-sm text-review-text outline-none placeholder:text-review-muted focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
     </div>
     <div id="file-tree" class="scrollbar-thin min-h-0 flex-1 overflow-auto px-2 pb-2"></div>

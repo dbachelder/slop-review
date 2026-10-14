@@ -3,7 +3,7 @@
 // `src/types.ts` shape so behavior stays consistent across the three host
 // adapters (Claude Code, Codex, pi).
 
-export type ReviewScope = "git-diff" | "last-commit" | "all-files";
+export type ReviewScope = "git-diff" | "last-commit" | "commit" | "all-files";
 
 export type ChangeStatus = "modified" | "added" | "deleted" | "renamed";
 
@@ -16,6 +16,12 @@ export interface ReviewFileComparison {
   hasModified: boolean;
 }
 
+export interface ReviewCommit {
+  sha: string;
+  shortSha: string;
+  subject: string;
+}
+
 export interface ReviewFile {
   id: string;
   path: string;
@@ -25,6 +31,7 @@ export interface ReviewFile {
   inLastCommit: boolean;
   gitDiff: ReviewFileComparison | null;
   lastCommit: ReviewFileComparison | null;
+  commitComparisons: Record<string, ReviewFileComparison>;
 }
 
 export interface ReviewFileContents {
@@ -38,6 +45,7 @@ export interface DiffReviewComment {
   id: string;
   fileId: string;
   scope: ReviewScope;
+  commitSha?: string;
   side: CommentSide;
   startLine: number | null;
   endLine: number | null;
@@ -59,6 +67,7 @@ export interface ReviewRequestFilePayload {
   requestId: string;
   fileId: string;
   scope: ReviewScope;
+  commitSha?: string;
 }
 
 export type ReviewWindowMessage = ReviewSubmitPayload | ReviewCancelPayload | ReviewRequestFilePayload;
@@ -68,6 +77,7 @@ export interface ReviewFileDataMessage {
   requestId: string;
   fileId: string;
   scope: ReviewScope;
+  commitSha?: string;
   originalContent: string;
   modifiedContent: string;
 }
@@ -77,6 +87,7 @@ export interface ReviewFileErrorMessage {
   requestId: string;
   fileId: string;
   scope: ReviewScope;
+  commitSha?: string;
   message: string;
 }
 
@@ -85,4 +96,5 @@ export type ReviewHostMessage = ReviewFileDataMessage | ReviewFileErrorMessage;
 export interface ReviewWindowData {
   repoRoot: string;
   files: ReviewFile[];
+  commits: ReviewCommit[];
 }

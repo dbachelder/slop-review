@@ -10,10 +10,11 @@ All three:
 
 1. Open a native review window
 2. Default to a **PR-style review** of all changes since your branch diverged from the base branch (auto-detected: `origin/HEAD` → `origin/main` → `main` → `origin/master` → `master`), and also support `last-commit` and `uncommitted` modes — see [Scopes](#scopes)
-3. Show a collapsible sidebar with fuzzy file search and git status markers
-4. Lazy-load file contents on demand as you switch files and scopes
-5. Let you draft comments on the original side, modified side, or whole file
-6. Write the composed feedback to a temp file when you submit; the agent reads it back, so the review shows up in the chat as a regular tool call and gets addressed item-by-item
+3. Let you select and review any of the 50 most recent commits
+4. Show a collapsible sidebar with fuzzy file search and git status markers
+5. Lazy-load file contents on demand as you switch files and scopes
+6. Let you draft comments on the original side, modified side, or whole file
+7. Write the composed feedback to a temp file when you submit; the agent reads it back, so the review shows up in the chat as a regular tool call and gets addressed item-by-item
 
 ![slop-review reviewing its own README change](docs/screenshot.png)
 
@@ -213,7 +214,7 @@ Or invoke it explicitly:
 
 ### What happens
 
-A native window opens. Browse files, leave inline or whole-file comments, then click **Submit feedback**. The CLI writes your feedback to `$TMPDIR/slop-review-<timestamp>.md` and prints the path. The agent then reads the file (visible in the UI as a `Read` / file-read tool call) and addresses each item. Click **Cancel** or close the window to abort.
+A native window opens. Browse the current diff or choose **Commits** to select one of the 50 most recent commits, leave inline or whole-file comments, then click **Submit feedback**. The CLI writes your feedback to `$TMPDIR/slop-review-<timestamp>.md` and prints the path. The agent then reads the file (visible in the UI as a `Read` / file-read tool call) and addresses each item. Click **Cancel** or close the window to abort.
 
 ### Standalone CLI
 
@@ -253,6 +254,8 @@ esac
 
 In `base` mode, the "git diff" tab in the window is relabelled `vs <base-ref>` so you can tell which ref you're comparing against. If no base branch is found, the CLI falls back to `uncommitted` and logs a warning.
 
+Every mode also exposes a **Commits** tab. Its dropdown lists the 50 most recent commits as `<short-sha> <subject>` and compares the selected commit to its first parent.
+
 ## How it works
 
 ```
@@ -276,7 +279,7 @@ with the full file contents.
 
 - **`plugin/bin/slop-review.js`** — CLI entry. Parses arguments, resolves the base ref + merge-base when in `base` mode, opens the Glimpse window, handles file-content requests. On submit, writes the composed prompt to `$TMPDIR/slop-review-<ts>.md` and prints `FEEDBACK_FILE: <path>` to stdout. On cancel, prints `REVIEW_CANCELLED`.
 - **`plugin/bin/plugin-run.sh`** — Plugin dispatcher. Resolves the plugin root from `$CLAUDE_PLUGIN_ROOT` (set by both Claude Code and Codex), `npm install`s on first run, then exec's the CLI.
-- **`plugin/src/git.js`** — Git scope/diff loader (ported from `src/git.ts`).
+- **`plugin/src/git.js`** — Git scope/diff loader, including recent commit metadata and per-commit comparisons (ported from `src/git.ts`).
 - **`plugin/src/prompt.js`** — Feedback prompt composer (ported verbatim from `src/prompt.ts`).
 - **`plugin/src/ui.js`** — Inlines `web/index.html` + `web/app.js` for the Glimpse window.
 - **`plugin/web/`** — Static UI assets (Monaco, Tailwind via CDN, app logic). Copied from upstream.
@@ -353,7 +356,7 @@ plugin lives in `./plugin/` instead of at the repo root.
 |---|---|---|
 | Hosts | pi only | pi + Claude Code + Codex CLI |
 | pi command name | `/diff-review` | `/slop-review` |
-| Default scope | All three tabs visible, no default scope | PR-style: changes since merge-base with auto-detected base branch |
+| Default scope | Git diff, last commit, recent commits, and all files; no default scope | PR-style: changes since merge-base with auto-detected base branch; recent commits remain selectable |
 | Args | (none) | `[base\|last-commit\|uncommitted\|all] [--base <ref>]` |
 | pi result delivery | `ctx.ui.setEditorText(prompt)` | Same |
 | pi waiting UI | pi-tui custom panel + Escape-to-cancel | Same (verbatim port) |

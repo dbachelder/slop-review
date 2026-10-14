@@ -5,7 +5,7 @@ argument-hint: "[base|last-commit|uncommitted|all] [--base <ref>]"
 
 # /slop-review
 
-Open the native diff review window so the user can leave inline / file-level / overall comments on the current changes (a.k.a. the slop), then address each comment.
+Open the native diff review window so the user can leave inline / file-level / overall comments on the current changes or a selected recent commit, then address each comment.
 
 ## Step 1 — run the dispatcher
 
@@ -31,6 +31,8 @@ Substitute the user's `$ARGUMENTS` into that block verbatim. Valid first argumen
 - `uncommitted` — working-tree changes vs `HEAD`.
 - `all` — debug / browse-only.
 - `--base <ref>` — override the auto-detected base branch (only meaningful with `base`).
+
+The window's **Commits** tab lets the user select one of the 50 most recent commits; no additional argument is needed.
 
 ## Step 2 — interpret the dispatcher's stdout
 

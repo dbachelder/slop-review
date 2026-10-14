@@ -7,6 +7,7 @@ function pickInitialScope() {
   }
   if (reviewData.files.some((file) => file.inGitDiff)) return "git-diff";
   if (reviewData.files.some((file) => file.inLastCommit)) return "last-commit";
+  if (reviewData.commits?.length > 0) return "commit";
   return "all-files";
 }
 
@@ -22,6 +23,7 @@ const state = {
   scrollPositions: {},
   sidebarCollapsed: false,
   fileFilter: "",
+  selectedCommitSha: reviewData.commits?.[0]?.sha || null,
   fileContents: {},
   fileErrors: {},
   pendingRequestIds: {},
@@ -33,7 +35,9 @@ const sidebarSearchInputEl = document.getElementById("sidebar-search-input");
 const toggleSidebarButton = document.getElementById("toggle-sidebar-button");
 const scopeDiffButton = document.getElementById("scope-diff-button");
 const scopeLastCommitButton = document.getElementById("scope-last-commit-button");
+const scopeCommitButton = document.getElementById("scope-commit-button");
 const scopeAllButton = document.getElementById("scope-all-button");
+const commitSelectEl = document.getElementById("commit-select");
 const windowTitleEl = document.getElementById("window-title");
 const repoRootEl = document.getElementById("repo-root");
 const fileTreeEl = document.getElementById("file-tree");
@@ -96,6 +100,7 @@ function scopeLabel(scope) {
   switch (scope) {
     case "git-diff": return "Git diff";
     case "last-commit": return "Last commit";
+    case "commit": return "Commit history";
     default: return "All files";
   }
 }
@@ -108,6 +113,8 @@ function scopeHint(scope) {
       return "Review working tree changes against HEAD. Hover or click line numbers in the gutter to add an inline comment.";
     case "last-commit":
       return "Review the last commit against its parent. Hover or click line numbers in the gutter to add an inline comment.";
+    case "commit":
+      return "Review the selected commit against its parent. Use the commit dropdown in the sidebar to move through history.";
     default:
       return "Review the current working tree snapshot. Hover or click line numbers in the gutter to add a code review comment.";
   }
@@ -137,6 +144,8 @@ function getScopedFiles() {
       return reviewData.files.filter((file) => file.inGitDiff);
     case "last-commit":
       return reviewData.files.filter((file) => file.inLastCommit);
+    case "commit":
+      return reviewData.files.filter((file) => state.selectedCommitSha && file.commitComparisons?.[state.selectedCommitSha]);
     default:
       return reviewData.files.filter((file) => file.hasWorkingTreeFile);
   }
@@ -162,6 +171,7 @@ function getScopeComparison(file, scope = state.currentScope) {
   if (!file) return null;
   if (scope === "git-diff") return file.gitDiff;
   if (scope === "last-commit") return file.lastCommit;
+  if (scope === "commit") return state.selectedCommitSha ? file.commitComparisons?.[state.selectedCommitSha] ?? null : null;
   return null;
 }
 
@@ -292,12 +302,16 @@ function buildTree(files) {
   return root;
 }
 
-function cacheKey(scope, fileId) {
-  return `${scope}:${fileId}`;
+function scopeInstanceKey(scope, commitSha = state.selectedCommitSha) {
+  return scope === "commit" ? `${scope}:${commitSha || ""}` : scope;
+}
+
+function cacheKey(scope, fileId, commitSha) {
+  return `${scopeInstanceKey(scope, commitSha)}:${fileId}`;
 }
 
 function scrollKey(scope, fileId) {
-  return `${scope}:${fileId}`;
+  return `${scopeInstanceKey(scope)}:${fileId}`;
 }
 
 function saveCurrentScrollPosition() {
@@ -366,7 +380,13 @@ function ensureFileLoaded(fileId, scope = state.currentScope) {
   state.pendingRequestIds[key] = requestId;
   renderTree();
   if (window.glimpse?.send) {
-    window.glimpse.send({ type: "request-file", requestId, fileId, scope });
+    window.glimpse.send({
+      type: "request-file",
+      requestId,
+      fileId,
+      scope,
+      commitSha: scope === "commit" ? state.selectedCommitSha : undefined,
+    });
   }
 }
 
@@ -412,7 +432,7 @@ function renderTreeNode(node, depth) {
     }
 
     const file = child.file;
-    const count = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope).length;
+    const count = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && (comment.scope !== "commit" || comment.commitSha === state.selectedCommitSha)).length;
     const reviewed = isFileReviewed(file.id);
     const requestState = getRequestState(file.id, state.currentScope);
     const loading = requestState.requestId != null && requestState.contents == null;
@@ -445,7 +465,7 @@ function renderSearchResults(files) {
     const path = getFileSearchPath(file);
     const baseName = getBaseName(path);
     const parentPath = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-    const count = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope).length;
+    const count = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && (comment.scope !== "commit" || comment.commitSha === state.selectedCommitSha)).length;
     const reviewed = isFileReviewed(file.id);
     const requestState = getRequestState(file.id, state.currentScope);
     const loading = requestState.requestId != null && requestState.contents == null;
@@ -489,6 +509,7 @@ function updateScopeButtons() {
   const counts = {
     diff: reviewData.files.filter((file) => file.inGitDiff).length,
     lastCommit: reviewData.files.filter((file) => file.inLastCommit).length,
+    commit: state.selectedCommitSha ? reviewData.files.filter((file) => file.commitComparisons?.[state.selectedCommitSha]).length : 0,
     all: reviewData.files.filter((file) => file.hasWorkingTreeFile).length,
   };
 
@@ -503,11 +524,17 @@ function updateScopeButtons() {
 
   scopeDiffButton.textContent = `Git diff${counts.diff > 0 ? ` (${counts.diff})` : ""}`;
   scopeLastCommitButton.textContent = `Last commit${counts.lastCommit > 0 ? ` (${counts.lastCommit})` : ""}`;
+  scopeCommitButton.textContent = `Commits${counts.commit > 0 ? ` (${counts.commit})` : ""}`;
   scopeAllButton.textContent = `All files${counts.all > 0 ? ` (${counts.all})` : ""}`;
 
   applyButtonClasses(scopeDiffButton, state.currentScope === "git-diff", counts.diff === 0);
   applyButtonClasses(scopeLastCommitButton, state.currentScope === "last-commit", counts.lastCommit === 0);
+  applyButtonClasses(scopeCommitButton, state.currentScope === "commit", !state.selectedCommitSha || reviewData.commits.length === 0);
   applyButtonClasses(scopeAllButton, state.currentScope === "all-files", counts.all === 0);
+
+  commitSelectEl.className = state.currentScope === "commit"
+    ? "mb-3 block w-full rounded-md border border-review-border bg-review-panel px-2 py-2 text-xs text-review-text outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+    : "mb-3 hidden w-full rounded-md border border-review-border bg-review-panel px-2 py-2 text-xs text-review-text outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
 }
 
 function updateToggleButtons() {
@@ -625,6 +652,7 @@ function showFileCommentModal() {
         id: `${Date.now()}:${Math.random().toString(16).slice(2)}`,
         fileId: file.id,
         scope: state.currentScope,
+        commitSha: state.currentScope === "commit" ? state.selectedCommitSha : undefined,
         side: "file",
         startLine: null,
         endLine: null,
@@ -705,7 +733,7 @@ function syncViewZones() {
 
   const originalEditor = diffEditor.getOriginalEditor();
   const modifiedEditor = diffEditor.getModifiedEditor();
-  const inlineComments = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && comment.side !== "file");
+  const inlineComments = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && (comment.scope !== "commit" || comment.commitSha === state.selectedCommitSha) && comment.side !== "file");
 
   inlineComments.forEach((item) => {
     const editor = item.side === "original" ? originalEditor : modifiedEditor;
@@ -729,7 +757,7 @@ function syncViewZones() {
 function updateDecorations() {
   if (!diffEditor || !monacoApi) return;
   const file = activeFile();
-  const comments = file ? state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && comment.side !== "file") : [];
+  const comments = file ? state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && (comment.scope !== "commit" || comment.commitSha === state.selectedCommitSha) && comment.side !== "file") : [];
   const originalRanges = [];
   const modifiedRanges = [];
 
@@ -758,7 +786,7 @@ function renderFileComments() {
     return;
   }
 
-  const fileComments = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && comment.side === "file");
+  const fileComments = state.comments.filter((comment) => comment.fileId === file.id && comment.scope === state.currentScope && (comment.scope !== "commit" || comment.commitSha === state.selectedCommitSha) && comment.side === "file");
 
   if (fileComments.length === 0) {
     fileCommentsContainer.className = "hidden overflow-hidden px-0 py-0";
@@ -882,6 +910,7 @@ function createGlyphHoverActions(editor, side) {
       id: `${Date.now()}:${Math.random().toString(16).slice(2)}`,
       fileId: file.id,
       scope: state.currentScope,
+      commitSha: state.currentScope === "commit" ? state.selectedCommitSha : undefined,
       side,
       startLine: line,
       endLine: line,
@@ -930,7 +959,7 @@ function createGlyphHoverActions(editor, side) {
 
 window.__reviewReceive = function (message) {
   if (!message || typeof message !== "object") return;
-  const key = cacheKey(message.scope, message.fileId);
+  const key = cacheKey(message.scope, message.fileId, message.commitSha);
 
   if (message.type === "file-data") {
     state.fileContents[key] = {
@@ -940,7 +969,7 @@ window.__reviewReceive = function (message) {
     delete state.fileErrors[key];
     delete state.pendingRequestIds[key];
     renderTree();
-    if (state.activeFileId === message.fileId && state.currentScope === message.scope) {
+    if (state.activeFileId === message.fileId && state.currentScope === message.scope && (message.scope !== "commit" || message.commitSha === state.selectedCommitSha)) {
       mountFile({ restoreFileScroll: true });
     }
     return;
@@ -950,7 +979,7 @@ window.__reviewReceive = function (message) {
     state.fileErrors[key] = message.message || "Unknown error";
     delete state.pendingRequestIds[key];
     renderTree();
-    if (state.activeFileId === message.fileId && state.currentScope === message.scope) {
+    if (state.activeFileId === message.fileId && state.currentScope === message.scope && (message.scope !== "commit" || message.commitSha === state.selectedCommitSha)) {
       mountFile({ preserveScroll: false });
     }
   }
@@ -1015,10 +1044,22 @@ function setupMonaco() {
   });
 }
 
+function populateCommitSelect() {
+  commitSelectEl.innerHTML = "";
+  (reviewData.commits || []).forEach((commit) => {
+    const option = document.createElement("option");
+    option.value = commit.sha;
+    option.textContent = `${commit.shortSha} ${commit.subject}`;
+    commitSelectEl.appendChild(option);
+  });
+  if (state.selectedCommitSha) commitSelectEl.value = state.selectedCommitSha;
+}
+
 function switchScope(scope) {
   const hasScopeFiles = {
     "git-diff": reviewData.files.some((file) => file.inGitDiff),
     "last-commit": reviewData.files.some((file) => file.inLastCommit),
+    "commit": !!state.selectedCommitSha && reviewData.commits.length > 0,
     "all-files": reviewData.files.some((file) => file.hasWorkingTreeFile),
   };
   if (!hasScopeFiles[scope] || state.currentScope === scope) return;
@@ -1087,6 +1128,10 @@ scopeLastCommitButton.addEventListener("click", () => {
   switchScope("last-commit");
 });
 
+scopeCommitButton.addEventListener("click", () => {
+  switchScope("commit");
+});
+
 scopeAllButton.addEventListener("click", () => {
   switchScope("all-files");
 });
@@ -1113,6 +1158,17 @@ sidebarSearchInputEl.addEventListener("keydown", (event) => {
   }
 });
 
+commitSelectEl.addEventListener("change", () => {
+  saveCurrentScrollPosition();
+  state.selectedCommitSha = commitSelectEl.value || null;
+  if (state.currentScope !== "commit") state.currentScope = "commit";
+  state.activeFileId = null;
+  renderAll({ restoreFileScroll: true });
+  const file = activeFile();
+  if (file) ensureFileLoaded(file.id, state.currentScope);
+});
+
+populateCommitSelect();
 ensureActiveFileForScope();
 renderTree();
 renderFileComments();

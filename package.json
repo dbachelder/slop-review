@@ -10,6 +10,9 @@
     "url": "git+https://github.com/dbachelder/slop-review.git"
   },
   "license": "MIT",
+  "scripts": {
+    "test": "node --test plugin/test/*.test.js"
+  },
   "pi": {
     "extensions": [
       "./plugin/extensions/pi/index.ts"
